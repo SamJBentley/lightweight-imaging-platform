@@ -1,3 +1,3 @@
-output "url" {
-  value = "http://${aws_instance.web.public_ip}"
-}
+#output "url" {
+#  value = "http://${aws_instance.sam-test.private_ip}"
+#}

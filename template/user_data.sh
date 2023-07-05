@@ -1,4 +1,11 @@
 #!/bin/bash
+sudo add-apt-repository -y main
+sudo add-apt-repository -y universe
+sudo add-apt-repository -y restricted
+sudo add-apt-repository -y multiverse
+sudo apt install -y xrdp
+sudo systemctl enable --now xrdp
+sudo ufw allow from any to any port 3389 proto tcp
 #echo "<h1>Hello, World</h1>" > index.html
 cat <<- EOF > index.html
 <!DOCTYPE html>
