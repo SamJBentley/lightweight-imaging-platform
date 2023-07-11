@@ -11,8 +11,17 @@ provider "aws" {
   region = "eu-west-1"
 }
 
+resource "aws_eip" "example" {
+  domain = "vpc"
+}
+
+resource "aws_eip_association" "eip_assoc" {
+  instance_id   = aws_instance.sam-sgw-instance.id
+  allocation_id = aws_eip.example.id
+}
+
 resource "aws_security_group" "sam-sg" {
-  vpc_id = "vpc-081f928e4fa54d30c"
+  vpc_id = aws_vpc.vpc.id
   ingress {
     from_port   = 0
     to_port     = 0
@@ -30,9 +39,9 @@ resource "aws_security_group" "sam-sg" {
 resource "aws_instance" "sam-sgw-instance" {
     ami = "ami-025cac61c7e308970"
     instance_type = "m5.4xlarge"
-    key_name = "3d-slicer-windows22"
-    subnet_id = "subnet-03779b65560751f69"
-    vpc_security_group_ids = [aws_security_group.sam-sg.id, "sg-0b3a2d178610f76fd"]
+    key_name = "qupath" # TODO: Create in CDK
+    subnet_id = aws_subnet.public_subnet.id
+    vpc_security_group_ids = [aws_security_group.sam-sg.id]
     iam_instance_profile = aws_iam_instance_profile.test_profile.name
 
     tags = {
@@ -45,17 +54,17 @@ resource "aws_storagegateway_gateway" "gateway" {
   gateway_name       = "sam-sgw"
   gateway_timezone   = "GMT"
   gateway_type       = "FILE_S3"
-  gateway_ip_address = aws_instance.sam-sgw-instance.private_ip
+  gateway_ip_address = aws_eip_association.eip_assoc.public_ip
   smb_guest_password = "password"
-  gateway_vpc_endpoint = "vpce-0c04d17536349f6fa-hcg1ud8k.storagegateway.eu-west-1.vpce.amazonaws.com"
+  gateway_vpc_endpoint = element(aws_vpc_endpoint.sgw.dns_entry, 0)["dns_name"]
 }
 
 resource "aws_instance" "qupath-and-syncback" {
     ami = "ami-09367cb512d8a2ee4"
     instance_type = "t2.xlarge"
-    key_name = "3d-slicer-windows22"
-    subnet_id = "subnet-03779b65560751f69"
-    vpc_security_group_ids = [aws_security_group.sam-sg.id, "sg-0b3a2d178610f76fd"]
+    key_name = "qupath"
+    subnet_id = aws_subnet.public_subnet.id
+    vpc_security_group_ids = [aws_security_group.sam-sg.id]
     iam_instance_profile = aws_iam_instance_profile.test_profile.name
 
     tags = {
