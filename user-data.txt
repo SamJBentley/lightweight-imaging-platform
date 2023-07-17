@@ -1,0 +1,1 @@
+echo \"net use D: \\\\${aws_instance.sam-sgw-instance.private_ip}\\${aws_s3_bucket.sam-bucket.bucket} /user:${aws_storagegateway_gateway.gateway.gateway_id}\\smbguest ${aws_storagegateway_gateway.gateway.smb_guest_password}\" > 'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp\\mount_drive.bat'

@@ -59,6 +59,98 @@ resource "aws_storagegateway_gateway" "gateway" {
   gateway_vpc_endpoint = element(aws_vpc_endpoint.sgw.dns_entry, 0)["dns_name"]
 }
 
+resource "aws_ebs_volume" "cache-disk" {
+  availability_zone = "eu-west-1a"
+  size              = 150
+  type              = "gp3"
+}
+
+resource "aws_volume_attachment" "ebs" {
+  device_name = "/dev/sdb"
+  volume_id   = aws_ebs_volume.cache-disk.id
+  instance_id = aws_instance.sam-sgw-instance.id
+}
+
+data "aws_storagegateway_local_disk" "disk" {
+  disk_node   = aws_volume_attachment.ebs.device_name
+  gateway_arn = aws_storagegateway_gateway.gateway.arn
+}
+
+resource "aws_storagegateway_cache" "cache" {
+  disk_id     = data.aws_storagegateway_local_disk.disk.disk_id
+  gateway_arn = aws_storagegateway_gateway.gateway.arn
+}
+
+resource "aws_storagegateway_smb_file_share" "example" {
+  authentication = "GuestAccess"
+  gateway_arn    = aws_storagegateway_gateway.gateway.arn
+  location_arn   = aws_s3_bucket.sam-bucket.arn
+  role_arn       = aws_iam_role.file-gateway-role.arn
+}
+
+resource "aws_iam_role" "file-gateway-role" {
+  name = "file-gateway-role"
+
+  assume_role_policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": "storagegateway.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+  })
+
+  tags = {
+      tag-key = "tag-value"
+  }
+}
+
+resource "aws_iam_role_policy" "file-gateway-policy" {
+  name = "file-gateway-policy"
+  role = aws_iam_role.file-gateway-role.id
+
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "s3:GetAccelerateConfiguration",
+                "s3:GetBucketLocation",
+                "s3:GetBucketVersioning",
+                "s3:ListBucket",
+                "s3:ListBucketVersions",
+                "s3:ListBucketMultipartUploads"
+            ],
+            "Resource": [
+                aws_s3_bucket.sam-bucket.arn
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:AbortMultipartUpload",
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion",
+                "s3:GetObject",
+                "s3:GetObjectAcl",
+                "s3:GetObjectVersion",
+                "s3:ListMultipartUploadParts",
+                "s3:PutObject",
+                "s3:PutObjectAcl"
+            ],
+            "Resource": [
+                "${aws_s3_bucket.sam-bucket.arn}/*"
+            ],
+            "Effect": "Allow"
+        }
+    ]
+})
+}
+
 resource "aws_instance" "qupath-and-syncback" {
     ami = "ami-09367cb512d8a2ee4"
     instance_type = "t2.xlarge"
@@ -66,6 +158,7 @@ resource "aws_instance" "qupath-and-syncback" {
     subnet_id = aws_subnet.public_subnet.id
     vpc_security_group_ids = [aws_security_group.sam-sg.id]
     iam_instance_profile = aws_iam_instance_profile.test_profile.name
+    user_data = "net use D: \\\\${aws_instance.sam-sgw-instance.private_ip}\\${aws_s3_bucket.sam-bucket.bucket} /user:${aws_storagegateway_gateway.gateway.gateway_id}\\smbguest ${aws_storagegateway_gateway.gateway.smb_guest_password}\""
 
     tags = {
       Name = "qupath-and-syncback"
