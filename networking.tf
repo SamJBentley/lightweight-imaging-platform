@@ -121,3 +121,77 @@ resource "aws_security_group" "default" {
     Environment = "imaging-platform"
   }
 }
+
+resource "aws_eip" "example" {
+  domain = "vpc"
+}
+
+resource "aws_eip_association" "eip_assoc" {
+  instance_id   = aws_instance.sam-sgw-instance.id
+  allocation_id = aws_eip.example.id
+}
+
+resource "aws_s3_bucket" "sam-bucket" {
+  bucket = "sam-sgw-hello-world-test"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_intelligent_tiering_configuration" "example-entire-bucket" {
+  bucket = aws_s3_bucket.sam-bucket.id
+  name   = "EntireBucket"
+
+  tiering {
+    access_tier = "DEEP_ARCHIVE_ACCESS"
+    days        = 180
+  }
+
+  tiering {
+    access_tier = "ARCHIVE_ACCESS"
+    days        = 125
+  }
+}
+
+resource "aws_iam_role" "test_role" {
+  name = "test_role"
+
+  assume_role_policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Action": "sts:AssumeRole",
+        "Principal": {
+          "Service": "ec2.amazonaws.com"
+        },
+        "Effect": "Allow",
+        "Sid": ""
+      }
+    ]
+  })
+
+  tags = {
+      tag-key = "tag-value"
+  }
+}
+
+resource "aws_iam_instance_profile" "test_profile" {
+  name = "test_profile"
+  role = aws_iam_role.test_role.name
+}
+
+resource "aws_iam_role_policy" "test_policy" {
+  name = "test_policy"
+  role = aws_iam_role.test_role.id
+
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Action": [
+          "s3:*"
+        ],
+        "Effect": "Allow",
+        "Resource": "*"
+      }
+    ]
+  })
+}
