@@ -48,6 +48,9 @@ resource "aws_storagegateway_smb_file_share" "example" {
   gateway_arn    = aws_storagegateway_gateway.gateway.arn
   location_arn   = aws_s3_bucket.sam-bucket.arn
   role_arn       = aws_iam_role.file-gateway-role.arn
+  cache_attributes {
+    cache_stale_timeout_in_seconds = 300
+  }
 }
 
 resource "aws_iam_role" "file-gateway-role" {
