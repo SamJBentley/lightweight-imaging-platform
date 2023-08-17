@@ -1,17 +1,27 @@
-resource "aws_instance" "sam-sgw-instance" {
+# Contains code to create the Storage Gateway, so that objects in S3 can be presented as a file system and mounted in
+# the QuPath EC2
+
+# Gives the Storage Gateway an IP address
+resource "aws_eip_association" "eip_assoc" {
+  instance_id   = aws_instance.sgw.id
+  allocation_id = aws_eip.elastic_ip.id
+}
+
+# Creates the EC2 for Storage Gateway
+resource "aws_instance" "sgw" {
     ami = "ami-025cac61c7e308970"
     instance_type = "m5.4xlarge"
-    key_name = "qupath" # TODO: Create in CDK
-    subnet_id = aws_subnet.public_subnet.id
-    vpc_security_group_ids = [aws_security_group.sam-sg.id]
-    iam_instance_profile = aws_iam_instance_profile.test_profile.name
+    subnet_id = aws_subnet.public.id
+    vpc_security_group_ids = [aws_security_group.main-sg.id]
+    iam_instance_profile = aws_iam_instance_profile.profile.name
 
     tags = {
-      Name = "sam-terraform-sgw-test"
-      CreatedBy = "Sam"
+      Name = "Storage Gateway EC2"
     }
 }
 
+# Creates the Storage Gateway.
+# !! You should change the password if you want to use this in production !!
 resource "aws_storagegateway_gateway" "gateway" {
   gateway_name       = "sam-sgw"
   gateway_timezone   = "GMT"
@@ -21,39 +31,45 @@ resource "aws_storagegateway_gateway" "gateway" {
   gateway_vpc_endpoint = element(aws_vpc_endpoint.sgw.dns_entry, 0)["dns_name"]
 }
 
+# Creates a disk for caching
 resource "aws_ebs_volume" "cache-disk" {
   availability_zone = "eu-west-1a"
   size              = 150
   type              = "gp3"
 }
 
+# Creates a disk for the EC2
 resource "aws_volume_attachment" "ebs" {
   device_name = "/dev/sdb"
   volume_id   = aws_ebs_volume.cache-disk.id
-  instance_id = aws_instance.sam-sgw-instance.id
+  instance_id = aws_instance.sgw.id
 }
 
+# Associates the EC2 disk with the Storage Gateway
 data "aws_storagegateway_local_disk" "disk" {
   disk_node   = aws_volume_attachment.ebs.device_name
   gateway_arn = aws_storagegateway_gateway.gateway.arn
 }
 
+# Associates the cache disk with Storage Gateway
 resource "aws_storagegateway_cache" "cache" {
   disk_id     = data.aws_storagegateway_local_disk.disk.disk_id
   gateway_arn = aws_storagegateway_gateway.gateway.arn
 }
 
-resource "aws_storagegateway_smb_file_share" "example" {
+# Creates the File Share for Storage Gateway
+resource "aws_storagegateway_smb_file_share" "fileshare" {
   authentication = "GuestAccess"
   gateway_arn    = aws_storagegateway_gateway.gateway.arn
-  location_arn   = aws_s3_bucket.sam-bucket.arn
-  role_arn       = aws_iam_role.file-gateway-role.arn
+  location_arn   = aws_s3_bucket.my-images.arn
+  role_arn       = aws_iam_role.fileshare-role.arn
   cache_attributes {
     cache_stale_timeout_in_seconds = 300
   }
 }
 
-resource "aws_iam_role" "file-gateway-role" {
+# Creates the IAM Role, so the file share can access S3
+resource "aws_iam_role" "fileshare-role" {
   name = "file-gateway-role"
 
   assume_role_policy = jsonencode({
@@ -68,15 +84,12 @@ resource "aws_iam_role" "file-gateway-role" {
         }
     ]
   })
-
-  tags = {
-      tag-key = "tag-value"
-  }
 }
 
-resource "aws_iam_role_policy" "file-gateway-policy" {
-  name = "file-gateway-policy"
-  role = aws_iam_role.file-gateway-role.id
+# Creates the permissions policy for the file share
+resource "aws_iam_role_policy" "fileshare-policy" {
+  name = "fileshare-policy"
+  role = aws_iam_role.fileshare-role.id
 
   policy = jsonencode({
     "Version": "2012-10-17",
@@ -91,7 +104,7 @@ resource "aws_iam_role_policy" "file-gateway-policy" {
                 "s3:ListBucketMultipartUploads"
             ],
             "Resource": [
-                aws_s3_bucket.sam-bucket.arn
+                aws_s3_bucket.my-images.arn
             ],
             "Effect": "Allow"
         },
@@ -108,7 +121,7 @@ resource "aws_iam_role_policy" "file-gateway-policy" {
                 "s3:PutObjectAcl"
             ],
             "Resource": [
-                "${aws_s3_bucket.sam-bucket.arn}/*"
+                "${aws_s3_bucket.my-images.arn}/*"
             ],
             "Effect": "Allow"
         }

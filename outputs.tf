@@ -1,19 +1,7 @@
-#output "url" {
-#  value = "http://${aws_instance.sam-test.private_ip}"
-#}
-
-output "vpce" {
-  value = "DNS = ${element(aws_vpc_endpoint.sgw.dns_entry, 0)["dns_name"]}"
+output "qupath_ec2_ip" {
+  value = "QuPath EC2 IP (put this into your Remote Desktop client, see README for username & password) = ${aws_instance.qupath.public_ip}"
 }
 
-output "smb" {
-  value = "${aws_storagegateway_smb_file_share.example.path}"
-}
-
-output "fileshare" {
-  value = "${aws_storagegateway_smb_file_share.example.fileshare_id}"
-}
-
-output "gateway" {
-  value = aws_storagegateway_gateway.gateway.gateway_id
+output "s3_bucket_name" {
+  value = "The S3 bucket name (to push your images into, see README for how) = ${aws_s3_bucket.my-images.bucket}"
 }

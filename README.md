@@ -1,5 +1,5 @@
 # Lightweight Imaging Platform
-The Lightweight Imaging Platform is a demonstration app providing you with the capability to:
+The Lightweight Imaging Platform is a demonstration stack providing you with the capability to:
 * Automatically copy images from your lab to AWS S3 (in the instructions below, we'll simulate the lab's image storage with your laptop)
 * Automatically archive images that have not been touched for 180 days
 * Enabled non-cloud-native desktop applications to open images from AWS S3
@@ -7,7 +7,7 @@ The Lightweight Imaging Platform is a demonstration app providing you with the c
 
 This repository contains Terraform code that will install the necessary components to perform the above tasks 
 
-## Disclaimer
+## <img src="./docs/warning.png" width="25px"/> Disclaimer
 This is a demonstration application only! The security is wide open, and you should take steps to tighten it should you
 wish to use it in a production system. In particular, at least the following changes should be made:
 1. IP address ranges (CIDR blocks) should be restricted in the private NAT gateway.
@@ -20,11 +20,11 @@ If you wish this to be networked with your lab (which is kinda the point), you s
 ## Overview
 Once installed, you will have the ability to do the following
 
-<img src="./docs/high-level-diagram.jpg" alt="High-level overview" width="75%" height="75%"/>
+<img src="./docs/high-level-diagram.jpg" alt="High-level overview"/>
 
 Terraform will install the following architecture into your AWS account
 
-<img src="./docs/architecture-overview.jpg" alt="High-level overview" width="25%" height="25%"/>
+<img src="./docs/architecture-overview.jpg" alt="High-level overview" width="50%" height="50%"/>
 
 It will also install ancillary services, such as IAM roles & policies (permissions stuff) and supportive services for 
 Storage Gateway. Storage Gateway, at a high-level, presents S3 as a file system, which means desktop applications installed 
@@ -58,31 +58,35 @@ You will need to create an EC2 Key Pair, so that you can connect to the EC2. Fol
 [these](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html) instructions. Don't forget to download 
 the resultant pem file.
 
-Once you have done this, update the locations in the terraform scripts where you see `key_name = "qupath"` and replace
-"qupath" with the name of your key.
-
 ### Install using terraform
 1. Initialise terraform: `terraform init`
-2. Set your AWS Profile, so that Terraform can authenticate against AWS: `export AWS_PROFILE=default`
-3. Install the AWS components: `terraform apply`
+1. Set your AWS Profile, so that Terraform can authenticate against AWS: `export AWS_PROFILE=default`
+1. Install the AWS components: `terraform apply -var "keyPair=[name of key pair created above]"
+1. The output will indicate the IP address required to be entered into your Remote Desktop client for the QuPath EC2 and
+will also contain the S3 bucket name for you to copy your images into. 
+```shell
+qupath_ec2_ip = "QuPath EC2 IP (put this into your Remote Desktop client, see README for username & password) = 34.242.152.175"
+s3_bucket_name = "The S3 bucket name (to push your images into, see README for how) = my-images-20230817161916883800000002"
+
+```
 
 ### Uninstalling
-Execute `terraform destroy`
+1. Set your AWS Profile, so that Terraform can authenticate against AWS: `export AWS_PROFILE=default`
+1. `terraform destroy -var "keyPair=[name of key pair created above]"`
 
-## EC2 Setup
+## QuPath EC2 Setup
 ### Accessing the EC2
 1. In the AWS console, select the EC2, select the **Actions** menu, **Security**, **Get Windows Password** and upload the Key Pair
 created above.
-2. Select the EC2 again and press **Connect**. Use the username **Administrator** and password in the previous step to 
+1. Select the EC2 again and press **Connect**. Use the username **Administrator** and password in the previous step to 
 remote-desktop into the EC2.
-3. The S3 bucket is automatically mounted at **blah blah**. Upon clicking the mounted drive, if you are asked for a password,
-enter "password" (note, you must change this password if you want to productionise)
 
-### Manually mounting the S3 bucket as a file share
-Sometimes, step 3 above can fail. You may need to manually mount the S3 bucket
-1. In the AWS Console, go to **Storage Gateway**, **File Shares**, select the fileshare, scroll to the bottom and grab the 
-**Example Command**.
-2. In the EC2, open a command prompt and execute the above command
+### Mounting the S3 bucket as a file share in the EC2
+1. The S3 bucket is automatically mounted as a network drive at **my-images-\[timestamp\]**. Open an Explorer window and 
+click the mounted drive. 
+1. When you are asked for a password, enter "password" (_note, you must change this password if you want to productionise_)
+
+![Enter password](./docs/enter-smb-password.png)
 
 ### Install QuPath
 Once you've accessed the EC2, open a web browser and download QuPath. The link can be found [here](https://qupath.github.io/)
@@ -105,8 +109,26 @@ aws s3 cp [CMU-1-Small-Region.svs](sample-data%2FCMU-1-Small-Region.svs) s3://sa
 _Note: Storage Gateway refreshes itself every 5 minutes. This means it will take this long for the file to appear in the
 EC2._
 
+Once Storage Gateway has refreshed, you can see the S3 image presented as a file in the EC2
+![S3 image in storage gateway](./docs/s3-image-in-storage-gateway.png)
+
 ### Open the image in QuPath
 Now that the svs file is in our S3 bucket, AWS Storage Gateway will present the svs S3 object as a file in the EC2
 1. Log into the EC2, as show above.
 2. Open QuPath and go to **File**, **Open** and select the file.
-3. The svs file that we copied from local is now present in the **abc folder** and is opened in .
+![Select the S3 image](./docs/open-image-in-qupath.png)
+3. The svs file that we copied from local is now present in the **abc folder** and is opened in.
+![The opened image in QuPath](./docs/open-image-in-qupath.png)
+
+And that's it, you've copied the image from your simulated microscope storage to the cloud and opened it in a desktop 
+analysis tool!
+
+## Next steps
+The world is your oyster! 
+* Fix security issues, highlighted in the disclaimer!
+* Make all of this private to your company. Put your AWS account on your workplace network, remove anything on the public subnets.
+* You can put the AWS CLI copy command onto a schedule (use `aws s3 sync` to copy new files only) to have a scheduled copy.
+* Put all of your microscopes on the scheduled copy and have full cloud integration for all of your microscopes.
+* You can write a lambda (a block of code) that's executed when the image is copied into S3 to register the image in RDS 
+(AWS database service). That way you'll have a DB containing all of your images.
+* Read barcodes, put the metadata in the DB too!
