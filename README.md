@@ -61,7 +61,7 @@ the resultant pem file.
 ### Install using terraform
 1. Initialise terraform: `terraform init`
 1. Set your AWS Profile, so that Terraform can authenticate against AWS: `export AWS_PROFILE=default`
-1. Install the AWS components: `terraform apply -var "keyPair=[name of key pair created above]"
+1. Install the AWS components: `terraform apply -var "keyPair=[name of key pair created above]"`
 1. The output will indicate the IP address required to be entered into your Remote Desktop client for the QuPath EC2 and
 will also contain the S3 bucket name for you to copy your images into. 
 ```shell
