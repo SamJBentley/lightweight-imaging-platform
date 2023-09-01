@@ -99,11 +99,12 @@ the AWS CLI on your local machine.
 This will simulate a copy of the image from the microscope. In this case, we're just using our local machine, but in 
 production, the source files will be copied from the microscope's file share to S3.
 
-You can use the following commands to copy the example SVS images contained in this repo, to S3.
+You can use the following commands to copy the example SVS images contained in this repo, to S3. Take a look at the 
+Terraform output to get the bucket name.
 
 ```shell
 export AWS_PROFILE=default
-aws s3 cp [CMU-1-Small-Region.svs](sample-data%2FCMU-1-Small-Region.svs) s3://sam-bucket/CMU-1-Small-Region.svs
+aws s3 cp sample-data/CMU-1-Small-Region.svs s3://my-bucket/CMU-1-Small-Region.svs
 ```
 
 _Note: Storage Gateway refreshes itself every 5 minutes. This means it will take this long for the file to appear in the
@@ -118,7 +119,7 @@ Now that the svs file is in our S3 bucket, AWS Storage Gateway will present the 
 2. Open QuPath and go to **File**, **Open** and select the file.
 ![Select the S3 image](./docs/open-image-in-qupath.png)
 3. The svs file that we copied from local is now present in the **abc folder** and is opened in.
-![The opened image in QuPath](./docs/open-image-in-qupath.png)
+![The opened image in QuPath](./docs/opened-image-in-qupath.png)
 
 And that's it, you've copied the image from your simulated microscope storage to the cloud and opened it in a desktop 
 analysis tool!
